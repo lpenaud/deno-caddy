@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "lint": "deno fmt src && deno lint src",
+    "logs": "deno run --allow-read=logs src/cli.ts logs logs/*.log"
+  },
+  "imports": {
+    "@std/http": "jsr:@std/http@^1.1.1",
+    "@std/json": "jsr:@std/json@^1.1.0",
+    "@std/streams": "jsr:@std/streams@^1.1.1"
+  }
+}
