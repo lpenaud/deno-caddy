@@ -14,12 +14,8 @@ Parse JSON logs into a human-readable format.
 
 ### Status code colors
 
-- [Successful responses](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status#successful_responses)
-  (2xx): green
-- [Redirection messages](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status#redirection_messages)
-  (3xx): cyan
-- [Client error responses](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status#client_error_responses)
-  (4xx): yellow
-- [Server error responses](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status#server_error_responses)
-  (5xx): red
+- [Successful responses (2xx)](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status#successful_responses): green
+- [Redirection messages (3xx)](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status#redirection_messages): cyan
+- [Client error responses (4xx)](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status#client_error_responses): yellow
+- [Server error responses (5xx)](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status#server_error_responses): red
 - Others: gray
