@@ -2,11 +2,14 @@ import { JsonValue } from "@std/json";
 import { isStatus, STATUS_TEXT } from "@std/http";
 import { jsonStreamFactory, openFiles } from "./io.ts";
 
+type CaddyLogRawHeader = string[] | undefined;
+
 interface CaddyLogRequestRawRecord {
   remote_ip: string;
   method: string;
   host: string;
   uri: string;
+  headers: Record<string, CaddyLogRawHeader>;
 }
 
 interface CaddyLogRawRecord {
@@ -26,6 +29,7 @@ export interface CaddyLog {
   url: URL;
   remoteIp: string;
   status: HttpStatus;
+  userAgent: string;
 }
 
 export class CaddyLogParseStream extends TransformStream<JsonValue, CaddyLog> {
@@ -51,6 +55,7 @@ export class CaddyLogParseStream extends TransformStream<JsonValue, CaddyLog> {
     log.status = this.#parseStatus(raw);
     log.ts = new Date(raw.ts * 1E3);
     log.url = new URL("https://" + raw.request.host + raw.request.uri);
+    log.userAgent = this.#parseHeader(raw.request.headers["User-Agent"]);
     controller.enqueue(log);
   }
 
@@ -59,6 +64,10 @@ export class CaddyLogParseStream extends TransformStream<JsonValue, CaddyLog> {
     status.code = code;
     status.text = isStatus(code) ? STATUS_TEXT[code] : "";
     return status;
+  }
+
+  #parseHeader(header: CaddyLogRawHeader): string {
+    return header === undefined ? "" : header.join(" ");
   }
 }
 

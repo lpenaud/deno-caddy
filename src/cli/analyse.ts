@@ -56,6 +56,7 @@ class AnalyseStream extends TransformStream<CaddyLog, string[]> {
           "remoteIp",
           "statusCode",
           "statusText",
+          "userAgent",
         ]);
       },
       transform: (chunk, controller) => this.#transform(chunk, controller),
@@ -66,7 +67,7 @@ class AnalyseStream extends TransformStream<CaddyLog, string[]> {
     chunk: CaddyLog,
     controller: TransformStreamDefaultController<string[]>,
   ) {
-    if (!isErrorStatus(chunk.status.code)) {
+    if (!isErrorStatus(chunk.status.code) && !chunk.url.pathname.endsWith("robots.txt")) {
       return;
     }
     controller.enqueue([
@@ -75,6 +76,7 @@ class AnalyseStream extends TransformStream<CaddyLog, string[]> {
       chunk.remoteIp,
       chunk.status.code.toString(10),
       chunk.status.text,
+      chunk.userAgent,
     ]);
   }
 }

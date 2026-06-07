@@ -22,7 +22,7 @@ export async function logs(args: string[]): Promise<number> {
   });
   for await (const record of stream) {
     console.log(
-      "%s %s %s %c%s%c %s",
+      "%s %s %s %c%s%c %s (%s)",
       tsFormat.format(record.ts),
       record.method,
       record.url.href,
@@ -30,6 +30,7 @@ export async function logs(args: string[]): Promise<number> {
       record.status.code,
       `color: inherit;`,
       record.remoteIp,
+      record.userAgent,
     );
   }
   return 0;
