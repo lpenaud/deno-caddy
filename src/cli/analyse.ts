@@ -47,10 +47,14 @@ function parseAnalyseArgs(args: string[]): AnalyseArgs {
 }
 
 class AnalyseStream extends TransformStream<CaddyLog, string[]> {
+
+  #dateFormatter: Intl.DateTimeFormat;
+
   constructor() {
     super({
       start: (controller) => {
         controller.enqueue([
+          "date",
           "method",
           "url",
           "remoteIp",
@@ -60,6 +64,10 @@ class AnalyseStream extends TransformStream<CaddyLog, string[]> {
         ]);
       },
       transform: (chunk, controller) => this.#transform(chunk, controller),
+    });
+    this.#dateFormatter = new Intl.DateTimeFormat("fr-FR", {
+      dateStyle: "short",
+      timeStyle: "short",
     });
   }
 
@@ -71,6 +79,7 @@ class AnalyseStream extends TransformStream<CaddyLog, string[]> {
       return;
     }
     controller.enqueue([
+      this.#dateFormatter.format(chunk.ts),
       chunk.method,
       chunk.url.href,
       chunk.remoteIp,
