@@ -24,7 +24,7 @@ export interface HttpStatus {
 }
 
 export interface CaddyLog {
-  ts: Date;
+  ts: Temporal.Instant;
   method: string;
   url: URL;
   remoteIp: string;
@@ -50,10 +50,11 @@ export class CaddyLogParseStream extends TransformStream<JsonValue, CaddyLog> {
     }
     const raw = chunk as unknown as CaddyLogRawRecord;
     const log: CaddyLog = Object.create(null);
+    const ts = Math.round(raw.ts * 1E3);
     log.method = raw.request.method;
     log.remoteIp = raw.request.remote_ip;
     log.status = this.#parseStatus(raw);
-    log.ts = new Date(raw.ts * 1E3);
+    log.ts = Temporal.Instant.fromEpochMilliseconds(ts);
     log.url = new URL("https://" + raw.request.host + raw.request.uri);
     log.userAgent = this.#parseHeader(raw.request.headers["User-Agent"]);
     controller.enqueue(log);
