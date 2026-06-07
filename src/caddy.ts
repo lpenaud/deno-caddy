@@ -1,5 +1,6 @@
 import { JsonValue } from "@std/json";
 import { isStatus, STATUS_TEXT } from "@std/http";
+import { jsonStreamFactory, openFiles } from "./io.ts";
 
 interface CaddyLogRequestRawRecord {
   remote_ip: string;
@@ -59,4 +60,9 @@ export class CaddyLogParseStream extends TransformStream<JsonValue, CaddyLog> {
     status.text = isStatus(code) ? STATUS_TEXT[code] : "";
     return status;
   }
+}
+
+export async function caddyLog(paths: string[]) {
+  const stream = await openFiles(paths, (r) => jsonStreamFactory(r));
+  return stream.pipeThrough(new CaddyLogParseStream());
 }

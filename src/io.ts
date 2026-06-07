@@ -1,4 +1,4 @@
-import { mergeReadableStreams, TextLineStream } from "@std/streams";
+import { mergeReadableStreams, TextLineStream, toText } from "@std/streams";
 import { JsonParseStream } from "@std/json/parse-stream";
 import { JsonValue } from "@std/json";
 
@@ -10,6 +10,19 @@ export function jsonStreamFactory(
     .pipeThrough(new JsonParseStream());
 }
 
+export async function openWritable(
+  path: string | undefined,
+): Promise<WritableStream<Uint8Array>> {
+  if (path === undefined || path === "-") {
+    return Deno.stdout.writable;
+  }
+  const f = await Deno.open(path, {
+    create: true,
+    write: true,
+  });
+  return f.writable;
+}
+
 export async function openFiles<T>(
   paths: string[],
   streamFactory: (readable: ReadableStream<Uint8Array>) => ReadableStream<T>,
@@ -19,4 +32,8 @@ export async function openFiles<T>(
   }
   const streams = await Promise.all(paths.map((p) => Deno.open(p)));
   return mergeReadableStreams(...streams.map((f) => streamFactory(f.readable)));
+}
+
+export function toTexts(...buffers: Uint8Array[]): Promise<string> {
+  return toText(ReadableStream.from(buffers));
 }
