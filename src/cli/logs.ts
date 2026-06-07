@@ -19,6 +19,7 @@ export async function logs(args: string[]): Promise<number> {
   const stream = await caddyLog(args);
   const tsFormat = new Intl.DateTimeFormat("fr-FR", {
     timeStyle: "medium",
+    timeZone: "Europe/Paris",
   });
   for await (const record of stream) {
     console.log(

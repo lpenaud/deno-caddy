@@ -47,7 +47,6 @@ function parseAnalyseArgs(args: string[]): AnalyseArgs {
 }
 
 class AnalyseStream extends TransformStream<CaddyLog, string[]> {
-
   #dateFormatter: Intl.DateTimeFormat;
 
   constructor() {
@@ -68,6 +67,7 @@ class AnalyseStream extends TransformStream<CaddyLog, string[]> {
     this.#dateFormatter = new Intl.DateTimeFormat("fr-FR", {
       dateStyle: "short",
       timeStyle: "short",
+      timeZone: "Europe/Paris",
     });
   }
 
@@ -75,7 +75,10 @@ class AnalyseStream extends TransformStream<CaddyLog, string[]> {
     chunk: CaddyLog,
     controller: TransformStreamDefaultController<string[]>,
   ) {
-    if (!isErrorStatus(chunk.status.code) && !chunk.url.pathname.endsWith("robots.txt")) {
+    if (
+      !isErrorStatus(chunk.status.code) &&
+      !chunk.url.pathname.endsWith("robots.txt")
+    ) {
       return;
     }
     controller.enqueue([
