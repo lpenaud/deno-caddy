@@ -18,7 +18,7 @@ function usage() {
 export async function main(args: string[]): Promise<number> {
   switch (args.shift()) {
     case "logs":
-      await logs(args);
+      await logs(getArg0(), args);
       return 0;
 
     case "analyse":

@@ -1,8 +1,8 @@
 import { parseArgs } from "@std/cli";
 import { isErrorStatus } from "@std/http";
 import { CsvStringifyStream } from "@std/csv";
-import { openWritable } from "../io.ts";
-import { CaddyLog, caddyLog } from "../caddy.ts";
+import { FilterStream, openWritable } from "../io.ts";
+import { CaddyLog, caddyLog, CaddyLogsColumns } from "../caddy.ts";
 
 function usage(arg0: string) {
   return `Usage: ${arg0} analyse
@@ -46,51 +46,9 @@ function parseAnalyseArgs(args: string[]): AnalyseArgs {
   };
 }
 
-class AnalyseStream extends TransformStream<CaddyLog, string[]> {
-  #dateFormatter: Intl.DateTimeFormat;
-
-  constructor() {
-    super({
-      start: (controller) => {
-        controller.enqueue([
-          "date",
-          "method",
-          "url",
-          "remoteIp",
-          "statusCode",
-          "statusText",
-          "userAgent",
-        ]);
-      },
-      transform: (chunk, controller) => this.#transform(chunk, controller),
-    });
-    this.#dateFormatter = new Intl.DateTimeFormat("fr-FR", {
-      dateStyle: "short",
-      timeStyle: "short",
-      timeZone: "Europe/Paris",
-    });
-  }
-
-  #transform(
-    chunk: CaddyLog,
-    controller: TransformStreamDefaultController<string[]>,
-  ) {
-    if (
-      !isErrorStatus(chunk.status.code) &&
-      !chunk.url.pathname.endsWith("robots.txt")
-    ) {
-      return;
-    }
-    controller.enqueue([
-      this.#dateFormatter.format(chunk.ts),
-      chunk.method,
-      chunk.url.href,
-      chunk.remoteIp,
-      chunk.status.code.toString(10),
-      chunk.status.text,
-      chunk.userAgent,
-    ]);
-  }
+function logFilter({ url, status }: CaddyLog): boolean {
+  return isErrorStatus(status.code) ||
+    url.pathname.endsWith("robots.txt");
 }
 
 export async function analyse(arg0: string, args: string[]): Promise<void> {
@@ -103,7 +61,8 @@ export async function analyse(arg0: string, args: string[]): Promise<void> {
     openWritable(output),
     caddyLog(paths),
   ]);
-  await readable.pipeThrough(new AnalyseStream())
+  await readable.pipeThrough(new FilterStream(logFilter))
+    .pipeThrough(new CaddyLogsColumns())
     .pipeThrough(new CsvStringifyStream({ separator: ";" }))
     .pipeThrough(new TextEncoderStream())
     .pipeTo(writable);

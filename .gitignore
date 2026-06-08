@@ -1,2 +1,5 @@
 # Ignore logs samples
 logs/*.log
+
+# Ignore generated csv
+logs/*.csv

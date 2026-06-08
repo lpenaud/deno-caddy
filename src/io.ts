@@ -37,3 +37,20 @@ export async function openFiles<T>(
 export function toTexts(...buffers: Uint8Array[]): Promise<string> {
   return toText(ReadableStream.from(buffers));
 }
+
+export class FilterStream<T> extends TransformStream<T, T> {
+  #predicate: (chunk: T) => boolean;
+
+  constructor(predicate: (chunk: T) => boolean) {
+    super({
+      transform: (chunk, controller) => this.#transform(chunk, controller),
+    });
+    this.#predicate = predicate;
+  }
+
+  #transform(chunk: T, controller: TransformStreamDefaultController<T>) {
+    if (this.#predicate(chunk)) {
+      controller.enqueue(chunk);
+    }
+  }
+}

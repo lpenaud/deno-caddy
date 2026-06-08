@@ -1,6 +1,7 @@
 import { JsonValue } from "@std/json";
 import { isStatus, STATUS_TEXT } from "@std/http";
 import { jsonStreamFactory, openFiles } from "./io.ts";
+import { DateTimeFormatFactory } from "./intl.ts";
 
 type CaddyLogRawHeader = string[] | undefined;
 
@@ -75,4 +76,41 @@ export class CaddyLogParseStream extends TransformStream<JsonValue, CaddyLog> {
 export async function caddyLog(paths: string[]) {
   const stream = await openFiles(paths, (r) => jsonStreamFactory(r));
   return stream.pipeThrough(new CaddyLogParseStream());
+}
+
+export class CaddyLogsColumns extends TransformStream<CaddyLog, string[]> {
+  #dateFormatter: Intl.DateTimeFormat;
+
+  constructor() {
+    super({
+      start: (controller) => {
+        controller.enqueue([
+          "date",
+          "method",
+          "url",
+          "remoteIp",
+          "statusCode",
+          "statusText",
+          "userAgent",
+        ]);
+      },
+      transform: (chunk, controller) => this.#transform(chunk, controller),
+    });
+    this.#dateFormatter = DateTimeFormatFactory.instance.shortDateTime();
+  }
+
+  #transform(
+    chunk: CaddyLog,
+    controller: TransformStreamDefaultController<string[]>,
+  ) {
+    controller.enqueue([
+      this.#dateFormatter.format(chunk.ts),
+      chunk.method,
+      chunk.url.href,
+      chunk.remoteIp,
+      chunk.status.code.toString(10),
+      chunk.status.text,
+      chunk.userAgent,
+    ]);
+  }
 }
