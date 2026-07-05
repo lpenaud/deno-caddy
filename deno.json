@@ -1,6 +1,7 @@
 {
   "tasks": {
-    "lint": "deno fmt src && deno lint src",
+    "lint": "deno fmt --check src && deno lint src",
+    "lint-fix": "deno fmt src && deno lint --fix src",
     "logs": "deno run --allow-read=logs src/cli/main.ts logs logs/*.log",
     "analyse": "deno run --allow-read=logs src/cli/main.ts analyse logs/*.log",
     "ban": "deno run --allow-read=logs src/cli/main.ts ban logs/*.log"
