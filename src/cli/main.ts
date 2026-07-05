@@ -1,6 +1,7 @@
-import { analyse } from "./analyse.ts";
-import { ban } from "./ban.ts";
-import { logs } from "./logs.ts";
+import { CliCommand } from "../utils.ts";
+import { analyse, AnalyseCommand } from "./analyse.ts";
+import { ban, BanCommand } from "./ban.ts";
+import { logs, LogsCommand } from "./logs.ts";
 
 function getArg0() {
   return import.meta.filename ?? import.meta.url;
@@ -17,24 +18,32 @@ function usage() {
 `;
 }
 
+async function runCommand(command: CliCommand, args: string[]): Promise<number> {
+  try {
+    await command.main(args);
+  } catch (error) {
+    console.error(command.usage());
+    console.error(error);
+    return 2;
+  }
+  return 0;
+}
+
 export async function main(args: string[]): Promise<number> {
+  const arg0 = getArg0();
   switch (args.shift()) {
     case "logs":
-      await logs(getArg0(), args);
-      return 0;
+      return runCommand(new LogsCommand(arg0), args);
 
     case "analyse":
-      await analyse(getArg0(), args);
-      return 0;
+      return runCommand(new AnalyseCommand(arg0), args);
 
     case "ban":
-      await ban(getArg0(), args);
-      return 0;
+      return runCommand(new BanCommand(arg0), args);
 
     case "help":
       console.log(usage());
       return 0;
-
 
     default:
       console.error(usage());

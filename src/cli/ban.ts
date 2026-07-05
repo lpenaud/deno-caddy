@@ -1,17 +1,9 @@
 import { parseArgs } from "@std/cli";
 import { CaddyLog, caddyLog } from "../caddy.ts";
 import { FilterStream, openWritable } from "../io.ts";
+import { CliCommand } from "../utils.ts";
 
 function usage(arg0: string) {
-  return `Usage: ${arg0} ban
-  [--help]
-  [--output=-]
-  [...PATHS]
-
-========================= OPTIONS =========================
-  - help    Show this help.
-  - paths   Specify files to read by default use stdin.
-`;
 }
 
 interface BanArgs {
@@ -46,9 +38,9 @@ function parseBanArgs(args: string[]): BanArgs {
 }
 
 function notAllowedUserAgents({ userAgent }: CaddyLog): boolean {
-  return userAgent.includes("ClaudeBot")
-    || userAgent.includes("GPTBot")
-    || userAgent.includes("OAI-SearchBot")
+  return userAgent.includes("ClaudeBot") ||
+    userAgent.includes("GPTBot") ||
+    userAgent.includes("OAI-SearchBot");
 }
 
 function logFilter(l: CaddyLog): boolean {
@@ -56,7 +48,7 @@ function logFilter(l: CaddyLog): boolean {
 }
 
 class BanOutputStream extends TransformStream<CaddyLog, string> {
-  #ips: Set<string>
+  #ips: Set<string>;
 
   constructor() {
     super({
@@ -65,7 +57,10 @@ class BanOutputStream extends TransformStream<CaddyLog, string> {
     this.#ips = new Set();
   }
 
-  #transform({ remoteIp }: CaddyLog, controller: TransformStreamDefaultController<string>) {
+  #transform(
+    { remoteIp }: CaddyLog,
+    controller: TransformStreamDefaultController<string>,
+  ) {
     if (this.#ips.has(remoteIp)) {
       return;
     }
@@ -74,18 +69,42 @@ class BanOutputStream extends TransformStream<CaddyLog, string> {
   }
 }
 
-export async function ban(arg0: string, args: string[]): Promise<void> {
-  const { help, infiles, output } = parseBanArgs(args);
-  if (help) {
-    console.log(usage(arg0));
-    return;
+export class BanCommand implements CliCommand {
+  #args0: string;
+
+  get arg0(): string {
+    return this.#args0;
   }
-  const [readable, writable] = await Promise.all([
-    caddyLog(infiles),
-    openWritable(output),
-  ]);
-  await readable.pipeThrough(new FilterStream(logFilter))
-    .pipeThrough(new BanOutputStream())
-    .pipeThrough(new TextEncoderStream())
-    .pipeTo(writable);
+
+  constructor(args0: string) {
+    this.#args0 = args0;
+  }
+
+  async main(args: string[]): Promise<void> {
+    const { help, infiles, output } = parseBanArgs(args);
+    if (help) {
+      console.log(this.usage());
+      return;
+    }
+    const [readable, writable] = await Promise.all([
+      caddyLog(infiles),
+      openWritable(output),
+    ]);
+    await readable.pipeThrough(new FilterStream(logFilter))
+      .pipeThrough(new BanOutputStream())
+      .pipeThrough(new TextEncoderStream())
+      .pipeTo(writable);
+  }
+
+  usage(): string {
+    return `Usage: ${this.#args0} ban
+  [--help]
+  [--output=-]
+  [...PATHS]
+
+========================= OPTIONS =========================
+  - help    Show this help.
+  - paths   Specify files to read by default use stdin.
+`;
+  }
 }

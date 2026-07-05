@@ -3,6 +3,7 @@ import { CaddyLog, caddyLog, CaddyLogsColumns } from "../caddy.ts";
 import { openWritable } from "../io.ts";
 import { DateTimeFormatFactory } from "../intl.ts";
 import { CsvStringifyStream } from "@std/csv/stringify-stream";
+import { CliCommand } from "../utils.ts";
 
 function getHttpStatusColor(status: number) {
   switch ((status / 100) | 0) {
@@ -17,19 +18,6 @@ function getHttpStatusColor(status: number) {
     default:
       return "gray"; // Autre
   }
-}
-
-function usage(arg0: string): string {
-  return `Usage: ${arg0}
-  [-h --help]
-  [-o --outfile PATH]
-  [...INFILES=-]
-
-============================= OPTIONS ==============================
-  - help        Show this help.
-  - outfile     Add one or more outputs files more than the stdout.
-  - infiles     Specify files to read by default use the stdin.
-`;
 }
 
 interface LogsArgs {
@@ -81,24 +69,49 @@ async function logVisitor(logs: AsyncIterable<CaddyLog>) {
   }
 }
 
-export async function logs(arg0: string, args: string[]): Promise<void> {
-  const { help, infiles, outfile } = parseLogsArgs(args);
-  if (help) {
-    console.log(usage(arg0));
-    return;
+export class LogsCommand implements CliCommand {
+  #arg0: string;
+
+  get arg0(): string {
+    return this.#arg0;
   }
-  const readable = await caddyLog(infiles);
-  if (outfile === undefined) {
-    await logVisitor(readable);
-    return;
+
+  constructor(arg0: string) {
+    this.#arg0 = arg0;
   }
-  const writable = await openWritable(outfile);
-  const [r1, r2] = readable.tee();
-  await Promise.all([
-    logVisitor(r1),
-    r2.pipeThrough(new CaddyLogsColumns())
-      .pipeThrough(new CsvStringifyStream({ separator: ";" }))
-      .pipeThrough(new TextEncoderStream())
-      .pipeTo(writable),
-  ]);
+
+  async main(args: string[]): Promise<void> {
+    const { help, infiles, outfile } = parseLogsArgs(args);
+    if (help) {
+      console.log(this.usage());
+      return;
+    }
+    const readable = await caddyLog(infiles);
+    if (outfile === undefined) {
+      await logVisitor(readable);
+      return;
+    }
+    const writable = await openWritable(outfile);
+    const [r1, r2] = readable.tee();
+    await Promise.all([
+      logVisitor(r1),
+      r2.pipeThrough(new CaddyLogsColumns())
+        .pipeThrough(new CsvStringifyStream({ separator: ";" }))
+        .pipeThrough(new TextEncoderStream())
+        .pipeTo(writable),
+    ]);
+  }
+
+  usage(): string {
+    return `Usage: ${this.#arg0}
+  [-h --help]
+  [-o --outfile PATH]
+  [...INFILES=-]
+
+============================= OPTIONS ==============================
+  - help        Show this help.
+  - outfile     Add one or more outputs files more than the stdout.
+  - infiles     Specify files to read by default use the stdin.
+`;
+  }
 }

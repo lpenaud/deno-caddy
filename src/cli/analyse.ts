@@ -3,19 +3,7 @@ import { isErrorStatus } from "@std/http";
 import { CsvStringifyStream } from "@std/csv";
 import { FilterStream, openWritable } from "../io.ts";
 import { CaddyLog, caddyLog, CaddyLogsColumns } from "../caddy.ts";
-
-function usage(arg0: string) {
-  return `Usage: ${arg0} analyse
-  [--help]
-  [--output=-]
-  [...PATHS]
-
-========================= OPTIONS =========================
-  - help    Show this help.
-  - output  Specify a output file by default use stdout.
-  - paths   Specify files to read by default use stdin.
-`;
-}
+import { CliCommand } from "../utils.ts";
 
 interface AnalyseArgs {
   help: boolean;
@@ -51,19 +39,44 @@ function logFilter({ url, status }: CaddyLog): boolean {
     url.pathname.endsWith("robots.txt");
 }
 
-export async function analyse(arg0: string, args: string[]): Promise<void> {
-  const { help, output, paths } = parseAnalyseArgs(args);
-  if (help) {
-    console.log(usage(arg0));
-    return;
+export class AnalyseCommand implements CliCommand {
+  #arg0: string;
+
+  get arg0(): string {
+    return this.#arg0;
   }
-  const [writable, readable] = await Promise.all([
-    openWritable(output),
-    caddyLog(paths),
-  ]);
-  await readable.pipeThrough(new FilterStream(logFilter))
-    .pipeThrough(new CaddyLogsColumns())
-    .pipeThrough(new CsvStringifyStream({ separator: ";" }))
-    .pipeThrough(new TextEncoderStream())
-    .pipeTo(writable);
+
+  constructor(arg0: string) {
+    this.#arg0 = arg0;
+  }
+
+  async main(args: string[]): Promise<void> {
+    const { help, output, paths } = parseAnalyseArgs(args);
+    if (help) {
+      console.log(this.usage());
+      return;
+    }
+    const [writable, readable] = await Promise.all([
+      openWritable(output),
+      caddyLog(paths),
+    ]);
+    await readable.pipeThrough(new FilterStream(logFilter))
+      .pipeThrough(new CaddyLogsColumns())
+      .pipeThrough(new CsvStringifyStream({ separator: ";" }))
+      .pipeThrough(new TextEncoderStream())
+      .pipeTo(writable);
+  }
+
+  usage(): string {
+    return `Usage: ${this.#arg0} analyse
+  [--help]
+  [--output=-]
+  [...PATHS]
+
+========================= OPTIONS =========================
+  - help    Show this help.
+  - output  Specify a output file by default use stdout.
+  - paths   Specify files to read by default use stdin.
+`;
+  }
 }
