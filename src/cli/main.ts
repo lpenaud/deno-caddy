@@ -1,4 +1,5 @@
 import { analyse } from "./analyse.ts";
+import { ban } from "./ban.ts";
 import { logs } from "./logs.ts";
 
 function getArg0() {
@@ -11,6 +12,7 @@ function usage() {
 ============= COMMANDS =============
   - logs    Show Caddy logs.
   - analyse Show suspicious logs.
+  - ban     Ban suspicious logs.
   - help    Show this help.
 `;
 }
@@ -25,9 +27,14 @@ export async function main(args: string[]): Promise<number> {
       await analyse(getArg0(), args);
       return 0;
 
+    case "ban":
+      await ban(getArg0(), args);
+      return 0;
+
     case "help":
       console.log(usage());
       return 0;
+
 
     default:
       console.error(usage());
