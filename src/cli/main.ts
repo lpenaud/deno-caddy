@@ -1,7 +1,7 @@
 import { CliCommand } from "../utils.ts";
-import { analyse, AnalyseCommand } from "./analyse.ts";
-import { ban, BanCommand } from "./ban.ts";
-import { logs, LogsCommand } from "./logs.ts";
+import { AnalyseCommand } from "./analyse.ts";
+import { BanCommand } from "./ban.ts";
+import { LogsCommand } from "./logs.ts";
 
 function getArg0() {
   return import.meta.filename ?? import.meta.url;
@@ -18,7 +18,10 @@ function usage() {
 `;
 }
 
-async function runCommand(command: CliCommand, args: string[]): Promise<number> {
+async function runCommand(
+  command: CliCommand,
+  args: string[],
+): Promise<number> {
   try {
     await command.main(args);
   } catch (error) {
@@ -29,7 +32,7 @@ async function runCommand(command: CliCommand, args: string[]): Promise<number> 
   return 0;
 }
 
-export async function main(args: string[]): Promise<number> {
+export function main(args: string[]): Promise<number> {
   const arg0 = getArg0();
   switch (args.shift()) {
     case "logs":
@@ -43,11 +46,11 @@ export async function main(args: string[]): Promise<number> {
 
     case "help":
       console.log(usage());
-      return 0;
+      return Promise.resolve(0);
 
     default:
       console.error(usage());
-      return 1;
+      return Promise.resolve(1);
   }
 }
 

@@ -3,9 +3,6 @@ import { CaddyLog, caddyLog } from "../caddy.ts";
 import { FilterStream, openWritable } from "../io.ts";
 import { CliCommand } from "../utils.ts";
 
-function usage(arg0: string) {
-}
-
 interface BanArgs {
   help: boolean;
   output?: string;
