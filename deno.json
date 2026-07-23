@@ -4,11 +4,14 @@
     "lint-fix": "deno fmt src && deno lint --fix src",
     "logs": "deno run --allow-read=logs src/cli/main.ts logs logs/*.log",
     "analyse": "deno run --allow-read=logs src/cli/main.ts analyse logs/*.log",
-    "ban": "deno run --allow-read=logs src/cli/main.ts ban logs/*.log"
+    "ban": "deno run --allow-read=logs src/cli/main.ts ban logs/*.log",
+    "paths": "deno run --allow-read=logs src/cli/main.ts paths --indir logs/caddy"
   },
   "imports": {
     "@std/cli": "jsr:@std/cli@^1.0.30",
     "@std/csv": "jsr:@std/csv@^1.0.6",
+    "@std/dotenv": "jsr:@std/dotenv@^0.225.7",
+    "@std/fs": "jsr:@std/fs@^1.0.24",
     "@std/http": "jsr:@std/http@^1.1.1",
     "@std/json": "jsr:@std/json@^1.1.0",
     "@std/streams": "jsr:@std/streams@^1.1.1"
