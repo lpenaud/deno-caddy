@@ -2,6 +2,7 @@ import { CliCommand } from "../utils.ts";
 import { AnalyseCommand } from "./analyse.ts";
 import { BanCommand } from "./ban.ts";
 import { LogsCommand } from "./logs.ts";
+import { PathsCommand } from "./paths.ts";
 
 function getArg0() {
   return import.meta.filename ?? import.meta.url;
@@ -14,6 +15,7 @@ function usage() {
   - logs    Show Caddy logs.
   - analyse Show suspicious logs.
   - ban     Ban suspicious logs.
+  - paths   Sort by paths.
   - help    Show this help.
 `;
 }
@@ -43,6 +45,9 @@ export function main(args: string[]): Promise<number> {
 
     case "ban":
       return runCommand(new BanCommand(arg0), args);
+
+    case "paths":
+      return runCommand(new PathsCommand(arg0), args);
 
     case "help":
       console.log(usage());

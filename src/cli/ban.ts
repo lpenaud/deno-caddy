@@ -1,7 +1,7 @@
 import { parseArgs } from "@std/cli";
 import { CaddyLog, caddyLog } from "../caddy.ts";
 import { FilterStream, openWritable } from "../io.ts";
-import { CliCommand } from "../utils.ts";
+import { CliCommand, IA_CRAWLERS_AGENTS, SUSPICIOUS_PATHS } from "../utils.ts";
 
 interface BanArgs {
   help: boolean;
@@ -35,13 +35,25 @@ function parseBanArgs(args: string[]): BanArgs {
 }
 
 function notAllowedUserAgents({ userAgent }: CaddyLog): boolean {
-  return userAgent.includes("ClaudeBot") ||
-    userAgent.includes("GPTBot") ||
-    userAgent.includes("OAI-SearchBot");
+  for (const crawler of IA_CRAWLERS_AGENTS) {
+    if (userAgent.includes(crawler)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function suspiciousPaths({ url }: CaddyLog): boolean {
+  for (const re of SUSPICIOUS_PATHS) {
+    if (re.test(url.pathname)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function logFilter(l: CaddyLog): boolean {
-  return notAllowedUserAgents(l);
+  return notAllowedUserAgents(l) || suspiciousPaths(l);
 }
 
 class BanOutputStream extends TransformStream<CaddyLog, string> {
