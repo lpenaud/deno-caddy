@@ -1,30 +1,35 @@
 import { parseArgs } from "@std/cli";
-import * as stdPath from "@std/path";
 import { CaddyLog, caddyLog } from "../caddy.ts";
-import { FilterStream, openWritable } from "../io.ts";
+import { FilterStream } from "../io.ts";
 import { CliCommand, IA_CRAWLERS_AGENTS, SUSPICIOUS_PATHS } from "../utils.ts";
+
+type BanFilter = (l: CaddyLog) => boolean;
 
 interface BanArgs {
   help: boolean;
-  userAgentPath: string;
-  suspiciousPaths: string;
+  filter: BanFilter;
   infiles: string[];
 }
 
+function mapFilterArg(filter: string | undefined): BanFilter {
+  if (filter === undefined) {
+    return allFilter;
+  }
+  const f = BAN_FILTERS[filter as keyof typeof BAN_FILTERS];
+  if (f === undefined) {
+    throw new Error(`Unkown filter '${filter}'`);
+  }
+  return f;
+}
+
 function parseBanArgs(args: string[]): BanArgs {
-  let {
+  const {
     help,
-    "suspicious-paths": suspiciousPaths,
-    "user-agents": userAgentPath,
-    outdir,
+    filter,
     _: infiles,
   } = parseArgs(args, {
     boolean: ["help"],
-    string: [
-      "outdir",
-      "user-agents",
-      "suspicious-paths",
-    ],
+    string: ["filter"],
     default: {
       help: false,
       outdir: "",
@@ -37,41 +42,43 @@ function parseBanArgs(args: string[]): BanArgs {
     return {
       help,
       infiles: [],
-      suspiciousPaths: "",
-      userAgentPath: "",
+      filter: allFilter,
     };
-  }
-  if (suspiciousPaths === undefined) {
-    suspiciousPaths = stdPath.join(outdir, "suspicious-paths.list");
-  }
-  if (userAgentPath === undefined) {
-    userAgentPath = stdPath.join(outdir, "user-agents.list");
   }
   return {
     help,
+    filter: mapFilterArg(filter),
     infiles: infiles.map((v) => v.toString()),
-    suspiciousPaths,
-    userAgentPath,
   };
 }
 
-function notAllowedUserAgentsFilter({ userAgent }: CaddyLog): boolean {
+const iaFilter: BanFilter = ({ userAgent }: CaddyLog) => {
   for (const crawler of IA_CRAWLERS_AGENTS) {
     if (userAgent.includes(crawler)) {
       return true;
     }
   }
   return false;
-}
+};
 
-function suspiciousPathsFilter({ url }: CaddyLog): boolean {
+const suspiciousFilter: BanFilter = ({ url }: CaddyLog) => {
   for (const re of SUSPICIOUS_PATHS) {
     if (re.test(url)) {
       return true;
     }
   }
   return false;
-}
+};
+
+const allFilter: BanFilter = (l: CaddyLog) =>
+  iaFilter(l) ||
+  suspiciousFilter(l);
+
+const BAN_FILTERS = Object.freeze({
+  IA: iaFilter,
+  SUSPICIOUS: suspiciousFilter,
+  ALL: allFilter,
+});
 
 class BanOutputStream extends TransformStream<CaddyLog, string> {
   constructor() {
@@ -100,41 +107,23 @@ export class BanCommand implements CliCommand {
   }
 
   async main(args: string[]): Promise<void> {
-    const { help, infiles, suspiciousPaths, userAgentPath } = parseBanArgs(
+    const { help, infiles, filter } = parseBanArgs(
       args,
     );
     if (help) {
       console.log(this.usage());
       return;
     }
-    const [
-      readable,
-      suspiciousPathsOutput,
-      userAgentPathOutput,
-    ] = await Promise.all([
-      caddyLog(infiles),
-      openWritable(suspiciousPaths),
-      openWritable(userAgentPath),
-    ]);
-    const [r1, r2] = readable.tee();
-    const o1 = r1.pipeThrough(new FilterStream(suspiciousPathsFilter))
+    const readable = await caddyLog(infiles);
+    await readable.pipeThrough(new FilterStream(filter))
       .pipeThrough(new BanOutputStream())
       .pipeThrough(new TextEncoderStream())
-      .pipeTo(suspiciousPathsOutput);
-    const o2 = r2.pipeThrough(new FilterStream(notAllowedUserAgentsFilter))
-      .pipeThrough(new BanOutputStream())
-      .pipeThrough(new TextEncoderStream())
-      .pipeTo(userAgentPathOutput);
-    await Promise.all([o1, o2]);
+      .pipeTo(Deno.stdout.writable, { preventClose: true });
   }
 
   usage(): string {
     return `Usage: ${this.#args0} ban
-  [--user-agents OUTFILE]
-  [--suspicious-paths OUTFILE]
-  [--outdir OUTDIR]
   [--help]
-  [--outdir=-]
   [...PATHS]
 
 ========================= OPTIONS =========================
