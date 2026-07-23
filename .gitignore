@@ -1,5 +1,13 @@
 # Ignore logs samples
-logs/*.log
+logs/**/*.log
+logs/**/*.log.gz
 
 # Ignore generated csv
 logs/*.csv
+
+# Ignore list files
+logs/*.list
+logs/*.txt
+
+# Ignore .env
+.env
