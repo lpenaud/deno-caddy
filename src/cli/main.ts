@@ -1,8 +1,7 @@
 import { CliCommand } from "../utils.ts";
 import { AnalyseCommand } from "./analyse.ts";
 import { BanCommand } from "./ban.ts";
-import { LogsCommand } from "./logs.ts";
-import { PathsCommand } from "./paths.ts";
+import { CsvCommand } from "./csv.ts";
 
 function getArg0() {
   return import.meta.filename ?? import.meta.url;
@@ -12,10 +11,9 @@ function usage() {
   return `Usage: ${getArg0()} COMMAND
 
 ============= COMMANDS =============
-  - logs    Show Caddy logs.
+  - csv    Caddy logs as CSV.
   - analyse Show suspicious logs.
   - ban     Ban suspicious logs.
-  - paths   Sort by paths.
   - help    Show this help.
 `;
 }
@@ -37,17 +35,14 @@ async function runCommand(
 export function main(args: string[]): Promise<number> {
   const arg0 = getArg0();
   switch (args.shift()) {
-    case "logs":
-      return runCommand(new LogsCommand(arg0), args);
+    case "csv":
+      return runCommand(new CsvCommand(arg0), args);
 
     case "analyse":
       return runCommand(new AnalyseCommand(arg0), args);
 
     case "ban":
       return runCommand(new BanCommand(arg0), args);
-
-    case "paths":
-      return runCommand(new PathsCommand(arg0), args);
 
     case "help":
       console.log(usage());

@@ -1,6 +1,22 @@
 import { mergeReadableStreams, TextLineStream, toText } from "@std/streams";
 import { JsonParseStream } from "@std/json/parse-stream";
 import { JsonValue } from "@std/json";
+import * as stdPath from "@std/path";
+
+export async function* fileTree(paths: string[]): AsyncGenerator<string> {
+  if (paths.length === 0) {
+    return;
+  }
+  for (const p of paths) {
+    const stat = await Deno.stat(p);
+    if (stat.isDirectory) {
+      const children = await Array.fromAsync(Deno.readDir(p));
+      yield* fileTree(children.map((v) => stdPath.join(p, v.name)));
+      continue;
+    }
+    yield p;
+  }
+}
 
 export function jsonStreamFactory(
   readable: ReadableStream<Uint8Array>,

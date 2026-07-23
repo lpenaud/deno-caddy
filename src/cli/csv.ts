@@ -1,6 +1,11 @@
 import { parseArgs } from "@std/cli";
 import * as fs from "@std/fs";
-import { CliCommand, PATHS_CSV_COLUMNS } from "../utils.ts";
+import {
+  CliCommand,
+  MutableTuple,
+  PATHS_CSV_COLUMNS,
+  StringArray,
+} from "../utils.ts";
 import { CaddyLog, CaddyLogParseStream } from "../caddy.ts";
 import { TextLineStream } from "@std/streams";
 import { JsonParseStream } from "@std/json";
@@ -76,24 +81,33 @@ async function* walkLogDir(root: string) {
   }
 }
 
-class PathOutputStream extends TransformStream<LogFile, string[]> {
+type PathOutputRecord = StringArray<MutableTuple<typeof PATHS_CSV_COLUMNS>>;
+
+class PathOutputStream extends TransformStream<LogFile, PathOutputRecord> {
+  #current: ReadableStream<CaddyLog> | null;
+
   constructor() {
     super({
       start: (controller) => {
         controller.enqueue([...PATHS_CSV_COLUMNS]);
       },
       transform: (l, c) => this.#transform(l, c),
+      cancel: (r) => this.#cancel(r),
     });
+    this.#current = null;
   }
 
   async #transform(
     l: LogFile,
-    controller: TransformStreamDefaultController<string[]>,
+    controller: TransformStreamDefaultController<PathOutputRecord>,
   ) {
-    const readable = await l.open();
-    for await (const r of readable) {
+    if (this.#current === null) {
+      this.#current = await l.open();
+    }
+    for await (const r of this.#current) {
       controller.enqueue([
         l.path,
+        r.ts.toJSON(),
         r.method,
         r.url.hostname,
         r.url.pathname,
@@ -102,10 +116,17 @@ class PathOutputStream extends TransformStream<LogFile, string[]> {
         r.status.text,
       ]);
     }
+    this.#current = null;
+  }
+
+  async #cancel(reason: unknown) {
+    if (this.#current !== null) {
+      await this.#current.cancel(reason);
+    }
   }
 }
 
-export class PathsCommand implements CliCommand {
+export class CsvCommand implements CliCommand {
   #args0: string;
 
   get arg0(): string {

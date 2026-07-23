@@ -1,40 +1,61 @@
 import { parseArgs } from "@std/cli";
+import * as stdPath from "@std/path";
 import { CaddyLog, caddyLog } from "../caddy.ts";
 import { FilterStream, openWritable } from "../io.ts";
 import { CliCommand, IA_CRAWLERS_AGENTS, SUSPICIOUS_PATHS } from "../utils.ts";
 
 interface BanArgs {
   help: boolean;
-  output?: string;
+  userAgentPath: string;
+  suspiciousPaths: string;
   infiles: string[];
 }
 
 function parseBanArgs(args: string[]): BanArgs {
-  const { help, output, _: infiles } = parseArgs(args, {
+  let {
+    help,
+    "suspicious-paths": suspiciousPaths,
+    "user-agents": userAgentPath,
+    outdir,
+    _: infiles,
+  } = parseArgs(args, {
     boolean: ["help"],
-    string: ["output"],
+    string: [
+      "outdir",
+      "user-agents",
+      "suspicious-paths",
+    ],
     default: {
       help: false,
+      outdir: "",
     },
     alias: {
       help: "h",
-      output: "o",
     },
   });
   if (help) {
     return {
       help,
       infiles: [],
+      suspiciousPaths: "",
+      userAgentPath: "",
     };
+  }
+  if (suspiciousPaths === undefined) {
+    suspiciousPaths = stdPath.join(outdir, "suspicious-paths.list");
+  }
+  if (userAgentPath === undefined) {
+    userAgentPath = stdPath.join(outdir, "user-agents.list");
   }
   return {
     help,
     infiles: infiles.map((v) => v.toString()),
-    output,
+    suspiciousPaths,
+    userAgentPath,
   };
 }
 
-function notAllowedUserAgents({ userAgent }: CaddyLog): boolean {
+function notAllowedUserAgentsFilter({ userAgent }: CaddyLog): boolean {
   for (const crawler of IA_CRAWLERS_AGENTS) {
     if (userAgent.includes(crawler)) {
       return true;
@@ -43,37 +64,26 @@ function notAllowedUserAgents({ userAgent }: CaddyLog): boolean {
   return false;
 }
 
-function suspiciousPaths({ url }: CaddyLog): boolean {
+function suspiciousPathsFilter({ url }: CaddyLog): boolean {
   for (const re of SUSPICIOUS_PATHS) {
-    if (re.test(url.pathname)) {
+    if (re.test(url)) {
       return true;
     }
   }
   return false;
 }
 
-function logFilter(l: CaddyLog): boolean {
-  return notAllowedUserAgents(l) || suspiciousPaths(l);
-}
-
 class BanOutputStream extends TransformStream<CaddyLog, string> {
-  #ips: Set<string>;
-
   constructor() {
     super({
       transform: (chunk, controller) => this.#transform(chunk, controller),
     });
-    this.#ips = new Set();
   }
 
   #transform(
     { remoteIp }: CaddyLog,
     controller: TransformStreamDefaultController<string>,
   ) {
-    if (this.#ips.has(remoteIp)) {
-      return;
-    }
-    this.#ips.add(remoteIp);
     controller.enqueue(remoteIp + "\n");
   }
 }
@@ -90,30 +100,45 @@ export class BanCommand implements CliCommand {
   }
 
   async main(args: string[]): Promise<void> {
-    const { help, infiles, output } = parseBanArgs(args);
+    const { help, infiles, suspiciousPaths, userAgentPath } = parseBanArgs(
+      args,
+    );
     if (help) {
       console.log(this.usage());
       return;
     }
-    const [readable, writable] = await Promise.all([
+    const [
+      readable,
+      suspiciousPathsOutput,
+      userAgentPathOutput,
+    ] = await Promise.all([
       caddyLog(infiles),
-      openWritable(output),
+      openWritable(suspiciousPaths),
+      openWritable(userAgentPath),
     ]);
-    await readable.pipeThrough(new FilterStream(logFilter))
+    const [r1, r2] = readable.tee();
+    const o1 = r1.pipeThrough(new FilterStream(suspiciousPathsFilter))
       .pipeThrough(new BanOutputStream())
       .pipeThrough(new TextEncoderStream())
-      .pipeTo(writable);
+      .pipeTo(suspiciousPathsOutput);
+    const o2 = r2.pipeThrough(new FilterStream(notAllowedUserAgentsFilter))
+      .pipeThrough(new BanOutputStream())
+      .pipeThrough(new TextEncoderStream())
+      .pipeTo(userAgentPathOutput);
+    await Promise.all([o1, o2]);
   }
 
   usage(): string {
     return `Usage: ${this.#args0} ban
+  [--user-agents OUTFILE]
+  [--suspicious-paths OUTFILE]
+  [--outdir OUTDIR]
   [--help]
-  [--output=-]
+  [--outdir=-]
   [...PATHS]
 
 ========================= OPTIONS =========================
-  - help    Show this help.
-  - paths   Specify files to read by default use stdin.
+  --help    Show this help.
 `;
   }
 }

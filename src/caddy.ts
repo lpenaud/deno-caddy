@@ -1,7 +1,8 @@
 import { JsonValue } from "@std/json";
 import { isStatus, STATUS_TEXT } from "@std/http";
-import { jsonStreamFactory, openFiles } from "./io.ts";
+import { fileTree, jsonStreamFactory } from "./io.ts";
 import { DateTimeFormatFactory } from "./intl.ts";
+import { mergeReadableStreams } from "@std/streams";
 
 type CaddyLogRawHeader = string[] | undefined;
 
@@ -73,9 +74,27 @@ export class CaddyLogParseStream extends TransformStream<JsonValue, CaddyLog> {
   }
 }
 
-export async function caddyLog(paths: string[]) {
-  const stream = await openFiles(paths, (r) => jsonStreamFactory(r));
-  return stream.pipeThrough(new CaddyLogParseStream());
+async function* openCaddyLog(paths: string[]) {
+  for await (const p of fileTree(paths)) {
+    const file = await Deno.open(p);
+    let r = file.readable;
+    if (p.endsWith(".gz")) {
+      r = r.pipeThrough(new DecompressionStream("gzip"));
+    }
+    yield jsonStreamFactory(r);
+  }
+}
+
+export async function caddyLog(
+  paths: string[],
+): Promise<ReadableStream<CaddyLog>> {
+  if (paths.length === 0) {
+    return jsonStreamFactory(Deno.stdin.readable)
+      .pipeThrough(new CaddyLogParseStream());
+  }
+  const readables = await Array.fromAsync(openCaddyLog(paths));
+  return mergeReadableStreams(...readables)
+    .pipeThrough(new CaddyLogParseStream());
 }
 
 export class CaddyLogsColumns extends TransformStream<CaddyLog, string[]> {
