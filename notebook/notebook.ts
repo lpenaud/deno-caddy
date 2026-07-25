@@ -3,11 +3,10 @@ import {
   PATHS_CSV_COLUMNS,
   PathsCsvColumns,
   PathsCsvRecord,
-  SUSPICIOUS_PATHS,
-  urlPatterns,
 } from "../src/utils.ts";
 import { TextLineStream } from "@std/streams";
 import "@std/dotenv/load";
+import { SUSPICIOUS_PATHS, urlPatterns } from "../src/filters.ts";
 
 async function readList(path: string): Promise<string[]> {
   const file = await Deno.open(path);
@@ -28,14 +27,16 @@ async function readList(path: string): Promise<string[]> {
   return await Array.fromAsync(readable);
 }
 
-async function getWhitelist(path: string | undefined): Promise<Set<string>> {
+async function getWhitelist(): Promise<Set<string>> {
+  const path = Deno.env.get("DNB_WHILTELIST_PATH");
   if (path === undefined) {
     return new Set();
   }
   return new Set(await readList(path));
 }
 
-async function getPathIgnore(path: string | undefined): Promise<URLPattern[]> {
+async function getPathIgnore(): Promise<URLPattern[]> {
+  const path = Deno.env.get("DNB_PATH_IGNORE");
   if (path === undefined) {
     return [];
   }
@@ -46,7 +47,11 @@ async function getPathIgnore(path: string | undefined): Promise<URLPattern[]> {
   ];
 }
 
-async function readCsv(path: string): Promise<PathsCsvRecord[]> {
+async function readCsv(): Promise<Omit<PathsCsvRecord, "date">[]> {
+  const path = Deno.env.get("DNB_CSV_PATH");
+  if (path === undefined) {
+    throw new Error("Undefined DNB_CSV_PATH");
+  }
   const infile = await Deno.open(path);
   const readable = infile.readable
     .pipeThrough(new TextDecoderStream())
@@ -54,7 +59,15 @@ async function readCsv(path: string): Promise<PathsCsvRecord[]> {
       new CsvParseStream({
         skipFirstRow: true,
         separator: ";",
-        columns: PATHS_CSV_COLUMNS,
+        columns: [
+          "log",
+          "method",
+          "hostname",
+          "path",
+          "remoteIp",
+          "statusCode",
+          "statusText",
+        ],
       }),
     );
   return await Array.fromAsync(readable);
@@ -85,19 +98,20 @@ function table(data: PathsCsvRecord[]) {
   return `<table>${content}</table>`;
 }
 
+interface PathPredicateArg {
+  hostname: string;
+  path: string;
+}
+
 export async function firstCell(): Promise<string> {
-  const csvPath = Deno.env.get("DNB_CSV_PATH");
-  if (csvPath === undefined) {
-    throw new Error("Undefined csvPath");
-  }
-  const [ips, paths] = await Promise.all([
-    getWhitelist(Deno.env.get("DNB_WHILTELIST_PATH")),
-    getPathIgnore(Deno.env.get("DNB_PATH_IGNORE")),
+  let [ips, patterns, data] = await Promise.all([
+    getWhitelist(),
+    getPathIgnore(),
+    readCsv(),
   ]);
-  let data = await readCsv(csvPath);
   const count = data.length;
   data = data.filter(({ hostname, path }) => {
-    for (const p of paths) {
+    for (const p of patterns) {
       if (p.test(`https://${hostname}${path}`)) {
         return false;
       }
@@ -108,5 +122,27 @@ export async function firstCell(): Promise<string> {
     data = data.filter((r) => !ips.has(r.remoteIp));
   }
   data.sort((a, b) => a.remoteIp.localeCompare(b.remoteIp));
-  return `<p>${data.length} / ${count}</p>${table(data)}`;
+  return `<p>${data.length} / ${count}</p>${table(data as PathsCsvRecord[])}`;
+}
+
+export async function secondCell(): Promise<string> {
+  let data = await readCsv();
+  data = data.filter(({ statusCode }) => statusCode === "200");
+  data = data.filter(({ hostname, path }) => {
+    for (const p of SUSPICIOUS_PATHS) {
+      if (p.test(`https://${hostname}${path}`)) {
+        return true;
+      }
+      return false;
+    }
+  });
+  const byPath = Map.groupBy(data, ({ path }) => path);
+  // data.sort((a, b) => a.remoteIp.localeCompare(b.remoteIp));
+  return `<ul>
+  ${
+    byPath.entries()
+      .map(([k, v]) => `<li>${k}: ${v.length}</li>`)
+      .reduce((s, v) => s + v, "")
+  }
+</ul>`;
 }
