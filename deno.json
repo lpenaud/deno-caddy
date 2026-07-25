@@ -3,7 +3,7 @@
     "lint": "deno fmt --check src && deno lint src",
     "lint-fix": "deno fmt src && deno lint --fix src",
     "analyse": "deno run --allow-read=logs src/cli/main.ts analyse logs/*.log",
-    "ban": "deno run --allow-read=logs --allow-write=logs src/cli/main.ts ban --outdir logs logs/caddy",
+    "ban": "deno run --allow-read=logs --allow-write=logs src/cli/main.ts ban logs/caddy",
     "csv": "deno run --allow-read=logs src/cli/main.ts paths logs/caddy"
   },
   "imports": {
