@@ -35,6 +35,7 @@ export class IpSetFactory {
     if (timeout) {
       args.push("timeout", `${timeout}`);
     }
+    args.push("comment");
     await runIpset(args);
     return new IpsetHashIp(name);
   }
