@@ -1,5 +1,4 @@
 import { CliCommand } from "../utils.ts";
-import { AnalyseCommand } from "./analyse.ts";
 import { BanCommand } from "./ban.ts";
 import { CsvCommand } from "./csv.ts";
 
@@ -37,9 +36,6 @@ export function main(args: string[]): Promise<number> {
   switch (args.shift()) {
     case "csv":
       return runCommand(new CsvCommand(arg0), args);
-
-    case "analyse":
-      return runCommand(new AnalyseCommand(arg0), args);
 
     case "ban":
       return runCommand(new BanCommand(arg0), args);

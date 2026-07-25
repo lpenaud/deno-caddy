@@ -1,35 +1,20 @@
 import { parseArgs } from "@std/cli";
 import { CaddyLog, caddyLog } from "../caddy.ts";
-import { FilterStream } from "../io.ts";
-import { CliCommand, IA_CRAWLERS_AGENTS, SUSPICIOUS_PATHS } from "../utils.ts";
-
-type BanFilter = (l: CaddyLog) => boolean;
+import { CliCommand } from "../utils.ts";
+import { IA_CRAWLERS_AGENTS, SUSPICIOUS_PATHS } from "../filters.ts";
+import { IpSetFactory } from "../ipset.ts";
 
 interface BanArgs {
   help: boolean;
-  filter: BanFilter;
   infiles: string[];
-}
-
-function mapFilterArg(filter: string | undefined): BanFilter {
-  if (filter === undefined) {
-    return allFilter;
-  }
-  const f = BAN_FILTERS[filter as keyof typeof BAN_FILTERS];
-  if (f === undefined) {
-    throw new Error(`Unkown filter '${filter}'`);
-  }
-  return f;
 }
 
 function parseBanArgs(args: string[]): BanArgs {
   const {
     help,
-    filter,
     _: infiles,
   } = parseArgs(args, {
     boolean: ["help"],
-    string: ["filter"],
     default: {
       help: false,
       outdir: "",
@@ -42,57 +27,29 @@ function parseBanArgs(args: string[]): BanArgs {
     return {
       help,
       infiles: [],
-      filter: allFilter,
     };
   }
   return {
     help,
-    filter: mapFilterArg(filter),
     infiles: infiles.map((v) => v.toString()),
   };
 }
 
-const iaFilter: BanFilter = ({ userAgent }: CaddyLog) => {
+function* testPath({ url }: CaddyLog) {
+  for (const pattern of SUSPICIOUS_PATHS) {
+    if (pattern.test(url)) {
+      yield pattern;
+    }
+  }
+}
+
+function testUserAgent({ userAgent }: CaddyLog) {
   for (const crawler of IA_CRAWLERS_AGENTS) {
     if (userAgent.includes(crawler)) {
-      return true;
+      return crawler;
     }
   }
-  return false;
-};
-
-const suspiciousFilter: BanFilter = ({ url }: CaddyLog) => {
-  for (const re of SUSPICIOUS_PATHS) {
-    if (re.test(url)) {
-      return true;
-    }
-  }
-  return false;
-};
-
-const allFilter: BanFilter = (l: CaddyLog) =>
-  iaFilter(l) ||
-  suspiciousFilter(l);
-
-const BAN_FILTERS = Object.freeze({
-  IA: iaFilter,
-  SUSPICIOUS: suspiciousFilter,
-  ALL: allFilter,
-});
-
-class BanOutputStream extends TransformStream<CaddyLog, string> {
-  constructor() {
-    super({
-      transform: (chunk, controller) => this.#transform(chunk, controller),
-    });
-  }
-
-  #transform(
-    { remoteIp }: CaddyLog,
-    controller: TransformStreamDefaultController<string>,
-  ) {
-    controller.enqueue(remoteIp + "\n");
-  }
+  return null;
 }
 
 export class BanCommand implements CliCommand {
@@ -107,18 +64,41 @@ export class BanCommand implements CliCommand {
   }
 
   async main(args: string[]): Promise<void> {
-    const { help, infiles, filter } = parseBanArgs(
+    const { help, infiles } = parseBanArgs(
       args,
     );
     if (help) {
       console.log(this.usage());
       return;
     }
-    const readable = await caddyLog(infiles);
-    await readable.pipeThrough(new FilterStream(filter))
-      .pipeThrough(new BanOutputStream())
-      .pipeThrough(new TextEncoderStream())
-      .pipeTo(Deno.stdout.writable, { preventClose: true });
+    const factory = new IpSetFactory();
+    const logs = await caddyLog(infiles);
+    const [userAgentSet, suspiciousSet] = await Promise.all([
+      factory.createHashIp({
+        name: "user-agent",
+        timeout: 86_400,
+      }),
+      factory.createHashIp({
+        name: "suspicious",
+        timeout: 604_800,
+      }),
+    ]);
+    for await (const l of logs) {
+      const userAgent = testUserAgent(l);
+      if (userAgent !== null) {
+        await userAgentSet.add({
+          entry: l.remoteIp,
+          comment: userAgent,
+        });
+        continue;
+      }
+      const patterns = Array.from(testPath(l));
+      if (patterns.length > 0) {
+        await suspiciousSet.add({
+          entry: l.remoteIp,
+        });
+      }
+    }
   }
 
   usage(): string {
