@@ -11,3 +11,6 @@ logs/*.txt
 
 # Ignore .env
 .env
+
+# Dist
+dist/

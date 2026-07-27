@@ -2,9 +2,11 @@
   "tasks": {
     "lint": "deno fmt --check src && deno lint src",
     "lint-fix": "deno fmt src && deno lint --fix src",
+    "compile": "deno compile --allow-read --allow-run --target x86_64-unknown-linux-gnu -o dist/deno-caddy src/cli/main.ts",
+    "clean": "rm -f dist/*",
     "analyse": "deno run --allow-read=logs src/cli/main.ts analyse logs/*.log",
     "ban": "deno run --allow-read=logs --allow-write=logs src/cli/main.ts ban logs/caddy",
-    "csv": "deno run --allow-read=logs src/cli/main.ts paths logs/caddy"
+    "csv": "deno run --allow-read=logs src/cli/main.ts csv --indir logs/caddy"
   },
   "imports": {
     "@std/cli": "jsr:@std/cli@^1.0.30",
