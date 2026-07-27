@@ -20,7 +20,7 @@ export const SUSPICIOUS_PATHS = Object.freeze(urlPatterns(
   "/telescope*",
   "/actuator*",
   "/console*",
-  "_vit_pvt",
+  "/_vti_pvt*",
   "/WEB-INF*",
   // Docker registry
   "/v2/_catalog",
@@ -35,7 +35,7 @@ export const SUSPICIOUS_PATHS = Object.freeze(urlPatterns(
   "/api/graphql",
   "/graphql/api",
   "/api/gql",
-  "/config.(php|js)",
+  "/config.(php|js|xml)",
   "/credentials.json",
   // "/docker-compose.yml",
   "/secrets.json",
@@ -55,15 +55,21 @@ export const SUSPICIOUS_PATHS = Object.freeze(urlPatterns(
   "/.bash_history",
   "*backup.(tar.gz|zip)",
   // PHP things
-  "/php-info*",
-  "/phpinfo*",
+  "/php([_-])?(info|version)(.php)?*",
+  // pi,pinfo,i
+  "/(p)?i(nfo)?.php*",
+  "/i.php*",
   "/xmlrpc.php",
   "/app_dev.php*",
   "/vendor/phpunit*",
+  "/_profiler*",
+  "/php.php*",
+  "/admin/**/*.php",
   // Laravel
   "/_ignition*",
   // Wordpress
   "/wp-login*",
+  "/wp-admin*",
   "/wp-config*",
   "/wp-json*",
   "//*",

@@ -12,6 +12,9 @@ interface CaddyLogRequestRawRecord {
   host: string;
   uri: string;
   headers: Record<string, CaddyLogRawHeader>;
+  tls?: {
+    server_name: string;
+  }
 }
 
 interface CaddyLogRawRecord {
@@ -37,9 +40,7 @@ export interface CaddyLog {
 export class CaddyLogParseStream extends TransformStream<JsonValue, CaddyLog> {
   constructor() {
     super({
-      transform: (chunk, controller) => {
-        this.#transform(chunk, controller);
-      },
+      transform: (chunk, controller) => this.#transform(chunk, controller),
     });
   }
 
@@ -57,8 +58,8 @@ export class CaddyLogParseStream extends TransformStream<JsonValue, CaddyLog> {
     log.remoteIp = raw.request.remote_ip;
     log.status = this.#parseStatus(raw);
     log.ts = Temporal.Instant.fromEpochMilliseconds(ts);
-    log.url = new URL("https://" + raw.request.host + raw.request.uri);
-    log.userAgent = this.#parseHeader(raw.request.headers["User-Agent"]);
+    log.url = this.#parseUrl(raw);
+    log.userAgent = this.#parseHeader(raw.request.headers, "User-Agent");
     controller.enqueue(log);
   }
 
@@ -69,8 +70,14 @@ export class CaddyLogParseStream extends TransformStream<JsonValue, CaddyLog> {
     return status;
   }
 
-  #parseHeader(header: CaddyLogRawHeader): string {
-    return header === undefined ? "" : header.join(" ");
+  #parseHeader(headers: Record<string, CaddyLogRawHeader>, name: string): string {
+    const h = headers[name];
+    return h === undefined ? "" : h.join(" ");
+  }
+
+  #parseUrl({ request: { host, uri, tls } }: CaddyLogRawRecord): URL {
+    const protocol = tls === undefined ? "http" : "https";
+    return new URL(`${protocol}://${host + uri}`);
   }
 }
 

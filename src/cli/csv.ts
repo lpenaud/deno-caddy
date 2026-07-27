@@ -2,6 +2,7 @@ import { parseArgs } from "@std/cli";
 import * as fs from "@std/fs";
 import {
   CliCommand,
+  CSV_SEPARATOR,
   MutableTuple,
   PATHS_CSV_COLUMNS,
   StringArray,
@@ -109,8 +110,7 @@ class PathOutputStream extends TransformStream<LogFile, PathOutputRecord> {
         l.path,
         r.ts.toJSON(),
         r.method,
-        r.url.hostname,
-        r.url.pathname,
+        r.url.href,
         r.remoteIp,
         r.status.code.toString(10),
         r.status.text,
@@ -158,7 +158,7 @@ export class CsvCommand implements CliCommand {
     logs.sort((a, b) => a.mtime - b.mtime);
     return ReadableStream.from(logs)
       .pipeThrough(new PathOutputStream())
-      .pipeThrough(new CsvStringifyStream({ separator: ";" }))
+      .pipeThrough(new CsvStringifyStream({ separator: CSV_SEPARATOR }))
       .pipeThrough(new TextEncoderStream())
       .pipeTo(Deno.stdout.writable, { preventClose: true });
   }

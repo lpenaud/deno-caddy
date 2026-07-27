@@ -1,5 +1,6 @@
 import { CsvParseStream } from "@std/csv";
 import {
+  CSV_SEPARATOR,
   PATHS_CSV_COLUMNS,
   PathsCsvColumns,
   PathsCsvRecord,
@@ -47,7 +48,7 @@ async function getPathIgnore(): Promise<URLPattern[]> {
   ];
 }
 
-async function readCsv(): Promise<Omit<PathsCsvRecord, "date">[]> {
+async function readCsv(): Promise<PathsCsvRecord[]> {
   const path = Deno.env.get("DNB_CSV_PATH");
   if (path === undefined) {
     throw new Error("Undefined DNB_CSV_PATH");
@@ -58,49 +59,35 @@ async function readCsv(): Promise<Omit<PathsCsvRecord, "date">[]> {
     .pipeThrough(
       new CsvParseStream({
         skipFirstRow: true,
-        separator: ";",
-        columns: [
-          "log",
-          "method",
-          "hostname",
-          "path",
-          "remoteIp",
-          "statusCode",
-          "statusText",
-        ],
+        separator: CSV_SEPARATOR,
+        columns: PATHS_CSV_COLUMNS,
       }),
     );
   return await Array.fromAsync(readable);
 }
 
 function table(data: PathsCsvRecord[]) {
-  const keys: PathsCsvColumns[] = [
-    "path",
-    "remoteIp",
-    "statusCode",
-    "statusText",
-  ];
+  const mappers = new Map<PathsCsvColumns, (value: string) => string>()
+    .set("url", (v) => v)
+    .set("remoteIp", (v) => v)
+    .set("statusCode", (v) => v)
+    .set("statusText", (v) => v);
   let content = "";
   content += "<thead><tr>";
-  for (const k of keys) {
+  for (const k of mappers.keys()) {
     content += `<th>${k}</th>`;
   }
   content += "</tr></thead>";
   content += "<tbody>";
   for (const r of data) {
     content += "<tr>";
-    for (const k of keys) {
-      content += `<td>${r[k]}</td>`;
+    for (const [k, m] of mappers) {
+      content += `<td>${m(r[k])}</td>`;
     }
     content += "</tr>";
   }
   content += "</tbody>";
   return `<table>${content}</table>`;
-}
-
-interface PathPredicateArg {
-  hostname: string;
-  path: string;
 }
 
 export async function firstCell(): Promise<string> {
@@ -110,9 +97,9 @@ export async function firstCell(): Promise<string> {
     readCsv(),
   ]);
   const count = data.length;
-  data = data.filter(({ hostname, path }) => {
+  data = data.filter(({ url }) => {
     for (const p of patterns) {
-      if (p.test(`https://${hostname}${path}`)) {
+      if (p.test(url)) {
         return false;
       }
     }
@@ -128,16 +115,15 @@ export async function firstCell(): Promise<string> {
 export async function secondCell(): Promise<string> {
   let data = await readCsv();
   data = data.filter(({ statusCode }) => statusCode === "200");
-  data = data.filter(({ hostname, path }) => {
+  data = data.filter(({ url }) => {
     for (const p of SUSPICIOUS_PATHS) {
-      if (p.test(`https://${hostname}${path}`)) {
+      if (p.test(url)) {
         return true;
       }
       return false;
     }
   });
-  const byPath = Map.groupBy(data, ({ path }) => path);
-  // data.sort((a, b) => a.remoteIp.localeCompare(b.remoteIp));
+  const byPath = Map.groupBy(data, ({ url }) => new URL(url).pathname);
   return `<ul>
   ${
     byPath.entries()

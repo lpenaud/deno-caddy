@@ -10,13 +10,14 @@ export type StringArray<T extends unknown[]> = {
   [K in keyof T]: string;
 };
 
+export const CSV_SEPARATOR = ";";
+
 export const PATHS_CSV_COLUMNS = Object.freeze(
   [
     "log",
     "date",
     "method",
-    "hostname",
-    "path",
+    "url",
     "remoteIp",
     "statusCode",
     "statusText",
